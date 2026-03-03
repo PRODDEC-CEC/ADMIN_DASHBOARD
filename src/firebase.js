@@ -11,6 +11,13 @@ function test() {
         throw new Error("VITE_FIREBASE_API_KEY is not defined");
     } else {
         console.log("Successfully imported Firebase config");
+        console.log(import.meta.env.VITE_FIREBASE_API_KEY);
+        console.log(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN);
+        console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
+        console.log(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET);
+        console.log(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID);
+        console.log(import.meta.env.VITE_FIREBASE_APP_ID);
+        console.log(import.meta.env.VITE_FIREBASE_MEASUREMENT_ID);
     }
 }
 test();
