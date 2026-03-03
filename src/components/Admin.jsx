@@ -65,6 +65,7 @@ const Admin = () => {
             const snapshot = await getDocs(q);
             const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setTeamMembers(membersData);
+            console.log(membersData);
         } catch (error) {
             console.error("Error fetching members:", error);
         }
