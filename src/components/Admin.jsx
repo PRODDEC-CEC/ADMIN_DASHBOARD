@@ -5,160 +5,198 @@ import uploadImage from '../utils/uploadImage';
 import { FaPlus, FaTrash, FaCheck, FaUsers, FaCalendarAlt, FaProjectDiagram, FaEdit, FaTimes } from 'react-icons/fa';
 
 const Admin = () => {
-
-    console.log("🚀 Admin component rendered");
-    console.log("🔥 Firestore DB instance:", db);
-
     const [activeTab, setActiveTab] = useState('events');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
 
+    // --- State for Teams ---
     const [teams, setTeams] = useState([]);
     const [newTeamYear, setNewTeamYear] = useState('');
     const [selectedTeam, setSelectedTeam] = useState('');
 
+    // --- State for Managing Members ---
     const [teamMembers, setTeamMembers] = useState([]);
     const [editingMember, setEditingMember] = useState(null);
 
+    // --- Bulk Forms State ---
     const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
     const [projects, setProjects] = useState([{ title: '', category: '', description: '', image: null }]);
     const [members, setMembers] = useState([{ name: '', title: '', handle: '', avatarUrl: null }]);
 
-    // ==============================
-    // INITIAL LOAD
-    // ==============================
+    // Fetch Teams on Load
     useEffect(() => {
-        console.log("📦 Initial useEffect triggered → fetchTeams()");
         fetchTeams();
     }, []);
 
+    // Fetch Members when Team Selected
     useEffect(() => {
-        console.log("👥 selectedTeam changed:", selectedTeam);
-        console.log("👥 Teams state:", teams);
-
         if (selectedTeam) {
             fetchTeamMembers(selectedTeam);
         } else {
-            console.log("⚠ No selected team → clearing members");
             setTeamMembers([]);
         }
-    }, [selectedTeam]);
+    }, [selectedTeam, teams]);
 
-    // ==============================
-    // FETCH TEAMS
-    // ==============================
     const fetchTeams = async () => {
-        console.log("🔄 fetchTeams START");
-
         try {
             const q = query(collection(db, 'execom_teams'));
-            console.log("📂 Querying collection: execom_teams");
-
             const snapshot = await getDocs(q);
-            console.log("📊 Teams snapshot size:", snapshot.size);
-
-            const teamData = snapshot.docs.map(docSnap => {
-                console.log("📄 Team Doc:", docSnap.id, docSnap.data());
-                return { id: docSnap.id, ...docSnap.data() };
-            });
-
-            teamData.sort((a, b) => b.year?.localeCompare(a.year));
-
-            console.log("✅ Sorted Teams:", teamData);
-
+            const teamData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort teams descending
+            teamData.sort((a, b) => b.year.localeCompare(a.year));
             setTeams(teamData);
 
+            // Set default selected team to current or first
             const current = teamData.find(t => t.isCurrent);
-
-            if (current && !selectedTeam) {
-                console.log("⭐ Setting current team:", current.id);
-                setSelectedTeam(current.id);
-            } else if (teamData.length > 0 && !selectedTeam) {
-                console.log("📌 Setting first team:", teamData[0].id);
-                setSelectedTeam(teamData[0].id);
-            }
+            if (current && !selectedTeam) setSelectedTeam(current.id);
+            else if (teamData.length > 0 && !selectedTeam) setSelectedTeam(teamData[0].id);
 
         } catch (error) {
-            console.error("❌ Error in fetchTeams:", error);
+            console.error("Error fetching teams:", error);
         }
-
-        console.log("🔄 fetchTeams END");
     };
 
-    // ==============================
-    // FETCH MEMBERS
-    // ==============================
     const fetchTeamMembers = async (teamId) => {
-        console.log("🔄 fetchTeamMembers START");
-        console.log("🔍 teamId:", teamId);
-
         const team = teams.find(t => t.id === teamId);
-
-        if (!team) {
-            console.log("❌ No matching team found");
-            return;
-        }
-
-        console.log("📅 Querying execom with year:", team.year);
+        if (!team) return;
 
         try {
             const q = query(collection(db, 'execom'), where('year', '==', team.year));
             const snapshot = await getDocs(q);
-
-            console.log("📊 Members snapshot size:", snapshot.size);
-
-            const membersData = snapshot.docs.map(docSnap => {
-                console.log("📄 Member Doc:", docSnap.id, docSnap.data());
-                return { id: docSnap.id, ...docSnap.data() };
-            });
-
+            const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setTeamMembers(membersData);
-
+            console.log(membersData);
         } catch (error) {
-            console.error("❌ Error fetching members:", error);
+            console.error("Error fetching members:", error);
         }
-
-        console.log("🔄 fetchTeamMembers END");
     };
 
-    // ==============================
-    // CREATE TEAM
-    // ==============================
+    // --- Team Management Functions ---
     const handleCreateTeam = async (e) => {
         e.preventDefault();
-        console.log("➕ handleCreateTeam START");
         setLoading(true);
-
         try {
-            console.log("New Team Year:", newTeamYear);
+            // Check if team exists
+            const existing = teams.find(t => t.year === newTeamYear);
+            if (existing) throw new Error("Team already exists");
 
             await addDoc(collection(db, 'execom_teams'), {
                 year: newTeamYear,
-                isCurrent: false,
+                isCurrent: false, // Default to false
                 createdAt: new Date().toISOString()
             });
 
-            console.log("✅ Team Created Successfully");
+            setMessage(`Team ${newTeamYear} created!`);
             setNewTeamYear('');
             fetchTeams();
-
         } catch (error) {
-            console.error("❌ Error creating team:", error);
             setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-        console.log("➕ handleCreateTeam END");
     };
 
-    // ==============================
-    // BULK SUBMIT
-    // ==============================
+    const handleSetCurrentTeam = async (teamId) => {
+        setLoading(true);
+        try {
+            const batch = writeBatch(db);
+
+            // Set all to false
+            teams.forEach(team => {
+                const ref = doc(db, 'execom_teams', team.id);
+                batch.update(ref, { isCurrent: false });
+            });
+
+            // Set selected to true
+            const targetRef = doc(db, 'execom_teams', teamId);
+            batch.update(targetRef, { isCurrent: true });
+
+            await batch.commit();
+            setMessage("Current team updated!");
+            fetchTeams();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- Member Management Functions ---
+    const handleDeleteMember = async (memberId) => {
+        if (!window.confirm("Are you sure you want to delete this member?")) return;
+        setLoading(true);
+        try {
+            await deleteDoc(doc(db, 'execom', memberId));
+            setMessage("Member deleted successfully.");
+            fetchTeamMembers(selectedTeam);
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEditClick = (member) => {
+        setEditingMember({ ...member, newImage: null });
+    };
+
+    const handleUpdateMember = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            let imageUrl = editingMember.avatarUrl;
+            if (editingMember.newImage) {
+                imageUrl = await uploadImage(editingMember.newImage);
+            }
+
+            const memberRef = doc(db, 'execom', editingMember.id);
+            await updateDoc(memberRef, {
+                name: editingMember.name,
+                title: editingMember.title,
+                handle: editingMember.handle,
+                avatarUrl: imageUrl
+            });
+
+            setMessage("Member updated successfully.");
+            setEditingMember(null);
+            fetchTeamMembers(selectedTeam);
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    // --- Bulk Form Helpers ---
+    const handleInputChange = (index, e, list, setList) => {
+        const { name, value } = e.target;
+        const newList = [...list];
+        newList[index][name] = value;
+        setList(newList);
+    };
+
+    const handleImageChange = (index, e, list, setList) => {
+        const file = e.target.files[0];
+        if (file) {
+            const newList = [...list];
+            newList[index].image = file;
+            setList(newList);
+        }
+    };
+
+    const addRow = (list, setList, template) => {
+        setList([...list, template]);
+    };
+
+    const removeRow = (index, list, setList) => {
+        const newList = list.filter((_, i) => i !== index);
+        setList(newList);
+    };
+
+    // --- Submit Handlers ---
     const handleBulkSubmit = async (e, type) => {
         e.preventDefault();
-        console.log("🚀 handleBulkSubmit START");
-        console.log("Type:", type);
-
         setLoading(true);
         setMessage(null);
 
@@ -177,22 +215,18 @@ const Admin = () => {
                 collectionName = 'execom';
 
                 if (!selectedTeam) throw new Error("Please select a team first");
-
+                // Find selected team year string
                 const team = teams.find(t => t.id === selectedTeam);
                 if (!team) throw new Error("Invalid team selected");
 
+                // Append year to member data
                 list = list.map(m => ({ ...m, year: team.year }));
             }
 
-            console.log("📦 Final upload list:", list);
-
+            // Loop and Upload
             for (const item of list) {
-                console.log("📤 Uploading item:", item);
-
                 let imageUrl = '';
-
                 if (item.image) {
-                    console.log("🖼 Uploading image...");
                     imageUrl = await uploadImage(item.image);
                 } else if (type === 'execom') {
                     imageUrl = 'https://reactbits.dev/assets/demo/person.webp';
@@ -200,6 +234,7 @@ const Admin = () => {
 
                 const docData = { ...item, createdAt: new Date().toISOString() };
 
+                // Handle different field names for image
                 if (type === 'execom') {
                     delete docData.image;
                     docData.avatarUrl = imageUrl;
@@ -208,19 +243,24 @@ const Admin = () => {
                 }
 
                 await addDoc(collection(db, collectionName), docData);
-                console.log("✅ Document added to:", collectionName);
             }
 
-            console.log("🎉 Bulk submit success");
             setMessage(`${type} added successfully!`);
 
-        } catch (error) {
-            console.error("❌ Bulk submit error:", error);
-            setMessage(`Error: ${error.message}`);
-        }
+            // Reset Forms
+            if (type === 'events') setEvents([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
+            if (type === 'projects') setProjects([{ title: '', category: '', description: '', image: null }]);
+            if (type === 'execom') {
+                setMembers([{ name: '', title: '', handle: '', avatarUrl: null }]);
+                fetchTeamMembers(selectedTeam); // Refresh list
+            }
 
-        setLoading(false);
-        console.log("🚀 handleBulkSubmit END");
+        } catch (error) {
+            console.error(error);
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
