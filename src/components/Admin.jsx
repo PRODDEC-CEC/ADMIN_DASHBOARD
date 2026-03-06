@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc, writeBatch, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import uploadImage from '../utils/uploadImage';
-import { FaPlus, FaTrash, FaCheck, FaUsers, FaCalendarAlt, FaProjectDiagram, FaEdit, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCheck, FaUsers, FaCalendarAlt, FaProjectDiagram, FaEdit, FaTimes, FaLightbulb } from 'react-icons/fa';
 
 const Admin = () => {
     const [activeTab, setActiveTab] = useState('events');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
+
+    // --- State for Submitted Ideas ---
+    const [submittedIdeas, setSubmittedIdeas] = useState([]);
 
     // --- State for Teams ---
     const [teams, setTeams] = useState([]);
@@ -17,6 +20,14 @@ const Admin = () => {
     // --- State for Managing Members ---
     const [teamMembers, setTeamMembers] = useState([]);
     const [editingMember, setEditingMember] = useState(null);
+
+    // --- State for Managing Events ---
+    const [existingEvents, setExistingEvents] = useState([]);
+    const [editingEvent, setEditingEvent] = useState(null);
+
+    // --- State for Managing Projects ---
+    const [existingProjects, setExistingProjects] = useState([]);
+    const [editingProject, setEditingProject] = useState(null);
 
     // --- Bulk Forms State ---
     const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
@@ -36,6 +47,17 @@ const Admin = () => {
             setTeamMembers([]);
         }
     }, [selectedTeam, teams]);
+
+
+    useEffect(() => {
+        if (activeTab === 'events') {
+            fetchEvents();
+        } else if (activeTab === 'projects') {
+            fetchProjects();
+        } else if (activeTab === 'ideas') {
+            fetchIdeas();
+        }
+    }, [activeTab]);
 
     const fetchTeams = async () => {
         try {
@@ -65,9 +87,57 @@ const Admin = () => {
             const snapshot = await getDocs(q);
             const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setTeamMembers(membersData);
-            console.log(membersData);
         } catch (error) {
             console.error("Error fetching members:", error);
+        }
+    };
+
+
+    const fetchEvents = async () => {
+        try {
+            const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            const eventData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setExistingEvents(eventData);
+        } catch (error) {
+            console.error("Error fetching events:", error);
+        }
+    };
+
+    const fetchProjects = async () => {
+        try {
+            const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            const projectData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setExistingProjects(projectData);
+        } catch (error) {
+            console.error("Error fetching projects:", error);
+        }
+    };
+
+    // --- Idea Management Functions ---
+    const fetchIdeas = async () => {
+        try {
+            const q = query(collection(db, 'ideas'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            const ideasData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSubmittedIdeas(ideasData);
+        } catch (error) {
+            console.error("Error fetching ideas:", error);
+        }
+    };
+
+    const handleDeleteIdea = async (ideaId) => {
+        if (!window.confirm("Are you sure you want to delete this idea?")) return;
+        setLoading(true);
+        try {
+            await deleteDoc(doc(db, 'ideas', ideaId));
+            setMessage("Idea deleted successfully.");
+            fetchIdeas();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -140,6 +210,7 @@ const Admin = () => {
         setEditingMember({ ...member, newImage: null });
     };
 
+
     const handleUpdateMember = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -160,6 +231,100 @@ const Admin = () => {
             setMessage("Member updated successfully.");
             setEditingMember(null);
             fetchTeamMembers(selectedTeam);
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- Event Management Functions ---
+    const handleDeleteEvent = async (eventId) => {
+        if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
+        setLoading(true);
+        try {
+            await deleteDoc(doc(db, 'events', eventId));
+            setMessage("Event deleted successfully.");
+            fetchEvents();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEditEventClick = (event) => {
+        setEditingEvent({ ...event, newImage: null });
+    };
+
+    const handleUpdateEvent = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            let imageUrl = editingEvent.image;
+            if (editingEvent.newImage) {
+                imageUrl = await uploadImage(editingEvent.newImage);
+            }
+
+            const eventRef = doc(db, 'events', editingEvent.id);
+            await updateDoc(eventRef, {
+                title: editingEvent.title,
+                date: editingEvent.date,
+                description: editingEvent.description,
+                location: editingEvent.location,
+                registerLink: editingEvent.registerLink,
+                image: imageUrl
+            });
+
+            setMessage("Event updated successfully.");
+            setEditingEvent(null);
+            fetchEvents();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- Project Management Functions ---
+    const handleDeleteProject = async (projectId) => {
+        if (!window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) return;
+        setLoading(true);
+        try {
+            await deleteDoc(doc(db, 'projects', projectId));
+            setMessage("Project deleted successfully.");
+            fetchProjects();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEditProjectClick = (project) => {
+        setEditingProject({ ...project, newImage: null });
+    };
+
+    const handleUpdateProject = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            let imageUrl = editingProject.image;
+            if (editingProject.newImage) {
+                imageUrl = await uploadImage(editingProject.newImage);
+            }
+
+            const projectRef = doc(db, 'projects', editingProject.id);
+            await updateDoc(projectRef, {
+                title: editingProject.title,
+                category: editingProject.category,
+                description: editingProject.description,
+                image: imageUrl
+            });
+
+            setMessage("Project updated successfully.");
+            setEditingProject(null);
+            fetchProjects();
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         } finally {
@@ -264,7 +429,7 @@ const Admin = () => {
     };
 
     return (
-        <div className="min-h-screen bg-transparent text-white pt-24 px-4 md:px-12 pb-12">
+        <div className="min-h-screen bg-black text-white pt-24 px-4 md:px-12 pb-12">
             <h1 className="text-4xl font-bold text-[#FFA200] mb-8 text-center">Admin Dashboard</h1>
 
             {/* Tabs */}
@@ -273,7 +438,8 @@ const Admin = () => {
                     { id: 'teams', label: 'Manage Teams', icon: <FaUsers /> },
                     { id: 'events', label: 'Add Events', icon: <FaCalendarAlt /> },
                     { id: 'projects', label: 'Add Projects', icon: <FaProjectDiagram /> },
-                    { id: 'execom', label: 'Manage Members', icon: <FaUsers /> }
+                    { id: 'execom', label: 'Manage Members', icon: <FaUsers /> },
+                    { id: 'ideas', label: 'View Ideas', icon: <FaLightbulb /> }
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -314,11 +480,11 @@ const Admin = () => {
                                     value={newTeamYear}
                                     onChange={(e) => setNewTeamYear(e.target.value)}
                                     placeholder="2026-2027"
-                                    className="w-full bg-transparent border border-white/10 p-3 rounded focus:border-[#FFA200] outline-none"
+                                    className="w-full bg-black/50 border border-white/10 p-3 rounded focus:border-[#FFA200] outline-none"
                                     required
                                 />
                             </div>
-                            <button type="submit" className="bg-[#FFA200] text-black font-bold py-3 px-6 rounded hover:bg-white transition-colors h-[50px]">
+                            <button type="submit" className="bg-[#FFA200] text-black font-bold py-3 px-6 rounded hover:bg-white transition-colors h-12.5">
                                 Create Team
                             </button>
                         </form>
@@ -348,6 +514,7 @@ const Admin = () => {
 
                 {/* --- Add Events --- */}
                 {activeTab === 'events' && (
+                    <>
                     <form onSubmit={(e) => handleBulkSubmit(e, 'events')} className="space-y-6">
                         <div className="flex justify-between items-center">
                             <h2 className="text-2xl font-bold">Add Events</h2>
@@ -357,28 +524,64 @@ const Admin = () => {
                         </div>
 
                         {events.map((event, idx) => (
-                            <div key={idx} className="bg-white/5 p-6 rounded-xl border border-white/10 relative group">
+                            <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
                                 {events.length > 1 && (
                                     <button type="button" onClick={() => removeRow(idx, events, setEvents)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <FaTrash />
                                     </button>
                                 )}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <input name="title" placeholder="Event Title" value={event.title} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                    <input type="datetime-local" name="date" value={event.date} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                    <input name="location" placeholder="Location" value={event.location} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                    <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded" />
+                                    <input name="title" placeholder="Event Title" value={event.title} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                    <input type="datetime-local" name="date" value={event.date} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                    <input name="location" placeholder="Location" value={event.location} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                    <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                 </div>
-                                <textarea name="description" placeholder="Description" value={event.description} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded h-24 mb-4" required />
-                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, events, setEvents)} className="w-full bg-transparent border border-white/10 p-3 rounded" />
+                                <textarea name="description" placeholder="Description" value={event.description} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
+                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                             </div>
                         ))}
                         <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Events</button>
                     </form>
+
+                    {/* Manage Existing Events */}
+                    <div className="border-t border-white/10 pt-8 mt-12">
+                        <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Events</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {existingEvents.map(event => (
+                                <div key={event.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
+                                    <div className="flex items-start gap-4">
+                                        <img src={event.image || '/placeholder.jpg'} alt={event.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-white text-lg">{event.title}</h4>
+                                            <p className="text-sm text-[#FFA200] mb-1">{new Date(event.date).toLocaleDateString()}</p>
+                                            <p className="text-xs text-white/60 line-clamp-2">{event.description}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
+                                        <button 
+                                            onClick={() => handleEditEventClick(event)} 
+                                            className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
+                                        >
+                                            <FaEdit /> Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteEvent(event.id)} 
+                                            className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
+                                        >
+                                            <FaTrash /> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {existingEvents.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No events found.</p>}
+                        </div>
+                    </div>
+                    </>
                 )}
 
                 {/* --- Add Projects --- */}
                 {activeTab === 'projects' && (
+                    <>
                     <form onSubmit={(e) => handleBulkSubmit(e, 'projects')} className="space-y-6">
                         <div className="flex justify-between items-center">
                             <h2 className="text-2xl font-bold">Add Projects</h2>
@@ -388,22 +591,57 @@ const Admin = () => {
                         </div>
 
                         {projects.map((project, idx) => (
-                            <div key={idx} className="bg-white/5 p-6 rounded-xl border border-white/10 relative group">
+                            <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
                                 {projects.length > 1 && (
                                     <button type="button" onClick={() => removeRow(idx, projects, setProjects)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <FaTrash />
                                     </button>
                                 )}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <input name="title" placeholder="Project Title" value={project.title} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                    <input name="category" placeholder="Category" value={project.category} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
+                                    <input name="title" placeholder="Project Title" value={project.title} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                    <input name="category" placeholder="Category" value={project.category} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                                 </div>
-                                <textarea name="description" placeholder="Description" value={project.description} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-transparent border border-white/10 p-3 rounded h-24 mb-4" required />
-                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, projects, setProjects)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
+                                <textarea name="description" placeholder="Description" value={project.description} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
+                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                             </div>
                         ))}
                         <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Projects</button>
                     </form>
+
+                    {/* Manage Existing Projects */}
+                    <div className="border-t border-white/10 pt-8 mt-12">
+                        <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Projects</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {existingProjects.map(project => (
+                                <div key={project.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
+                                    <div className="flex items-start gap-4">
+                                        <img src={project.image || '/placeholder.jpg'} alt={project.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-white text-lg">{project.title}</h4>
+                                            <p className="text-sm text-[#FFA200] mb-1">{project.category}</p>
+                                            <p className="text-xs text-white/60 line-clamp-2">{project.description}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
+                                        <button 
+                                            onClick={() => handleEditProjectClick(project)} 
+                                            className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
+                                        >
+                                            <FaEdit /> Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteProject(project.id)} 
+                                            className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
+                                        >
+                                            <FaTrash /> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {existingProjects.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No projects found.</p>}
+                        </div>
+                    </div>
+                    </>
                 )}
 
                 {/* --- Add & Manage Execom --- */}
@@ -415,12 +653,12 @@ const Admin = () => {
                                 <select
                                     value={selectedTeam}
                                     onChange={(e) => setSelectedTeam(e.target.value)}
-                                    className="w-full bg-slate-900 border border-[#FFA200]/30 p-3 rounded text-white focus:border-[#FFA200] outline-none bg-transparent"
+                                    className="w-full bg-black border border-[#FFA200]/30 p-3 rounded text-white focus:border-[#FFA200] outline-none"
                                     required
                                 >
-                                    <option value="" className="bg-slate-900">-- Select Team --</option>
+                                    <option value="">-- Select Team --</option>
                                     {teams.map(t => (
-                                        <option key={t.id} value={t.id} className="bg-slate-900">{t.year} {t.isCurrent ? '(Current)' : ''}</option>
+                                        <option key={t.id} value={t.id}>{t.year} {t.isCurrent ? '(Current)' : ''}</option>
                                     ))}
                                 </select>
                             </div>
@@ -433,17 +671,17 @@ const Admin = () => {
                             </div>
 
                             {members.map((member, idx) => (
-                                <div key={idx} className="bg-white/5 p-6 rounded-xl border border-white/10 relative group">
+                                <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
                                     {members.length > 1 && (
                                         <button type="button" onClick={() => removeRow(idx, members, setMembers)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <FaTrash />
                                         </button>
                                     )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                        <input name="name" placeholder="Full Name" value={member.name} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                        <input name="title" placeholder="Role/Title" value={member.title} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-transparent border border-white/10 p-3 rounded" required />
-                                        <input name="handle" placeholder="Social Handle" value={member.handle} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-transparent border border-white/10 p-3 rounded" />
-                                        <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, members, setMembers)} className="w-full bg-transparent border border-white/10 p-3 rounded" />
+                                        <input name="name" placeholder="Full Name" value={member.name} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="title" placeholder="Role/Title" value={member.title} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="handle" placeholder="Social Handle" value={member.handle} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
+                                        <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                     </div>
                                 </div>
                             ))}
@@ -476,34 +714,139 @@ const Admin = () => {
                         )}
                     </div>
                 )}
+
+                {/* --- View Ideas --- */}
+                {activeTab === 'ideas' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold mb-6 text-white/90">Submitted Ideas</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {submittedIdeas.map(idea => (
+                                <div key={idea.id} className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col gap-2 relative group">
+                                    <button 
+                                        onClick={() => handleDeleteIdea(idea.id)} 
+                                        className="absolute top-4 right-4 text-red-500 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Delete Idea"
+                                    >
+                                        <FaTrash />
+                                    </button>
+                                    <h3 className="text-xl font-bold text-[#FFA200]">{idea.name}</h3>
+                                    <div className="text-sm text-gray-400 flex gap-4 flex-wrap mb-2">
+                                        <span><strong className="text-gray-500">Class:</strong> {idea.class}</span>
+                                        {idea.membershipId && <span><strong className="text-gray-500">ID:</strong> {idea.membershipId}</span>}
+                                        <span><strong className="text-gray-500">Phone:</strong> {idea.phone}</span>
+                                    </div>
+                                    <div className="p-4 bg-black/30 rounded-lg text-white/80 whitespace-pre-wrap">
+                                        {idea.description}
+                                    </div>
+                                    <div className="mt-2 text-xs text-gray-600 text-right">
+                                        Submitted on: {idea.createdAt?.toDate ? idea.createdAt.toDate().toLocaleString() : new Date().toLocaleString()}
+                                    </div>
+                                </div>
+                            ))}
+                            {submittedIdeas.length === 0 && <p className="text-white/40 text-center py-8">No ideas submitted yet.</p>}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Edit Modal */}
+            {/* Edit Modal for Members */}
             {editingMember && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-                    <div className="bg-slate-900 p-8 rounded-2xl w-full max-w-lg border border-[#FFA200]/30 relative">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+                    <div className="bg-[#111] p-8 rounded-2xl w-full max-w-lg border border-[#FFA200]/30 relative my-8">
                         <button onClick={() => setEditingMember(null)} className="absolute top-4 right-4 text-white/50 hover:text-white"><FaTimes /></button>
                         <h2 className="text-2xl font-bold mb-6 text-[#FFA200]">Edit Member</h2>
 
                         <form onSubmit={handleUpdateMember} className="space-y-4">
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Name</label>
-                                <input value={editingMember.name} onChange={e => setEditingMember({ ...editingMember, name: e.target.value })} className="w-full bg-transparent border border-white/10 p-3 rounded text-white" required />
+                                <input value={editingMember.name || ''} onChange={e => setEditingMember({ ...editingMember, name: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                             </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Title</label>
-                                <input value={editingMember.title} onChange={e => setEditingMember({ ...editingMember, title: e.target.value })} className="w-full bg-transparent border border-white/10 p-3 rounded text-white" required />
+                                <input value={editingMember.title || ''} onChange={e => setEditingMember({ ...editingMember, title: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                             </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Handle</label>
-                                <input value={editingMember.handle} onChange={e => setEditingMember({ ...editingMember, handle: e.target.value })} className="w-full bg-transparent border border-white/10 p-3 rounded text-white" />
+                                <input value={editingMember.handle || ''} onChange={e => setEditingMember({ ...editingMember, handle: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
                             </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Change Image (Optional)</label>
-                                <input type="file" accept="image/*" onChange={(e) => setEditingMember({ ...editingMember, newImage: e.target.files[0] })} className="w-full bg-transparent border border-white/10 p-3 rounded text-white" />
+                                <input type="file" accept="image/*" onChange={(e) => setEditingMember({ ...editingMember, newImage: e.target.files[0] })} className="w-full bg-black border border-white/10 p-3 rounded text-white file:bg-[#FFA200] file:text-black file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
                             </div>
 
                             <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded mt-4 hover:bg-white transition-colors">Update Member</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal for Projects */}
+            {editingProject && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+                    <div className="bg-[#111] p-8 rounded-2xl w-full max-w-lg border border-[#FFA200]/30 relative my-8">
+                        <button onClick={() => setEditingProject(null)} className="absolute top-4 right-4 text-white/50 hover:text-white"><FaTimes /></button>
+                        <h2 className="text-2xl font-bold mb-6 text-[#FFA200]">Edit Project</h2>
+
+                        <form onSubmit={handleUpdateProject} className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Title</label>
+                                <input value={editingProject.title || ''} onChange={e => setEditingProject({ ...editingProject, title: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Category</label>
+                                <input value={editingProject.category || ''} onChange={e => setEditingProject({ ...editingProject, category: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Description</label>
+                                <textarea value={editingProject.description || ''} onChange={e => setEditingProject({ ...editingProject, description: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white h-32 focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Change Image (Optional)</label>
+                                <input type="file" accept="image/*" onChange={(e) => setEditingProject({ ...editingProject, newImage: e.target.files[0] })} className="w-full bg-black border border-white/10 p-3 rounded text-white file:bg-[#FFA200] file:text-black file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                            </div>
+
+                            <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded mt-4 hover:bg-white transition-colors">Update Project</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal for Events */}
+            {editingEvent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+                    <div className="bg-[#111] p-8 rounded-2xl w-full max-w-lg border border-[#FFA200]/30 relative my-8">
+                        <button onClick={() => setEditingEvent(null)} className="absolute top-4 right-4 text-white/50 hover:text-white"><FaTimes /></button>
+                        <h2 className="text-2xl font-bold mb-6 text-[#FFA200]">Edit Event</h2>
+
+                        <form onSubmit={handleUpdateEvent} className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Title</label>
+                                <input value={editingEvent.title || ''} onChange={e => setEditingEvent({ ...editingEvent, title: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Date</label>
+                                    <input type="datetime-local" value={editingEvent.date || ''} onChange={e => setEditingEvent({ ...editingEvent, date: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Location</label>
+                                    <input value={editingEvent.location || ''} onChange={e => setEditingEvent({ ...editingEvent, location: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                                </div>
+                            </div>
+                             <div>
+                                <label className="block text-sm text-white/60 mb-1">Register Link</label>
+                                <input value={editingEvent.registerLink || ''} onChange={e => setEditingEvent({ ...editingEvent, registerLink: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Description</label>
+                                <textarea value={editingEvent.description || ''} onChange={e => setEditingEvent({ ...editingEvent, description: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white h-32 focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Change Image (Optional)</label>
+                                <input type="file" accept="image/*" onChange={(e) => setEditingEvent({ ...editingEvent, newImage: e.target.files[0] })} className="w-full bg-black border border-white/10 p-3 rounded text-white file:bg-[#FFA200] file:text-black file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                            </div>
+
+                            <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded mt-4 hover:bg-white transition-colors">Update Event</button>
                         </form>
                     </div>
                 </div>
