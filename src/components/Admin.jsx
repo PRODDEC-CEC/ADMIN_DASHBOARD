@@ -31,7 +31,7 @@ const Admin = () => {
 
     // --- Bulk Forms State ---
     const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
-    const [projects, setProjects] = useState([{ title: '', category: '', description: '', image: null }]);
+    const [projects, setProjects] = useState([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
     const [members, setMembers] = useState([{ name: '', title: '', handle: '', avatarUrl: null }]);
 
     // Fetch Teams on Load
@@ -319,6 +319,8 @@ const Admin = () => {
                 title: editingProject.title,
                 category: editingProject.category,
                 description: editingProject.description,
+                status: editingProject.status,
+                year: editingProject.year,
                 image: imageUrl
             });
 
@@ -414,7 +416,7 @@ const Admin = () => {
 
             // Reset Forms
             if (type === 'events') setEvents([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
-            if (type === 'projects') setProjects([{ title: '', category: '', description: '', image: null }]);
+            if (type === 'projects') setProjects([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
             if (type === 'execom') {
                 setMembers([{ name: '', title: '', handle: '', avatarUrl: null }]);
                 fetchTeamMembers(selectedTeam); // Refresh list
@@ -515,132 +517,134 @@ const Admin = () => {
                 {/* --- Add Events --- */}
                 {activeTab === 'events' && (
                     <>
-                    <form onSubmit={(e) => handleBulkSubmit(e, 'events')} className="space-y-6">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-bold">Add Events</h2>
-                            <button type="button" onClick={() => addRow(events, setEvents, { title: '', date: '', description: '', location: '', registerLink: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
-                                <FaPlus /> Add Row
-                            </button>
-                        </div>
-
-                        {events.map((event, idx) => (
-                            <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
-                                {events.length > 1 && (
-                                    <button type="button" onClick={() => removeRow(idx, events, setEvents)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <FaTrash />
-                                    </button>
-                                )}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <input name="title" placeholder="Event Title" value={event.title} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                    <input type="datetime-local" name="date" value={event.date} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                    <input name="location" placeholder="Location" value={event.location} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                    <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
-                                </div>
-                                <textarea name="description" placeholder="Description" value={event.description} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
-                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
+                        <form onSubmit={(e) => handleBulkSubmit(e, 'events')} className="space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold">Add Events</h2>
+                                <button type="button" onClick={() => addRow(events, setEvents, { title: '', date: '', description: '', location: '', registerLink: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
+                                    <FaPlus /> Add Row
+                                </button>
                             </div>
-                        ))}
-                        <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Events</button>
-                    </form>
 
-                    {/* Manage Existing Events */}
-                    <div className="border-t border-white/10 pt-8 mt-12">
-                        <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Events</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {existingEvents.map(event => (
-                                <div key={event.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
-                                    <div className="flex items-start gap-4">
-                                        <img src={event.image || '/placeholder.jpg'} alt={event.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-white text-lg">{event.title}</h4>
-                                            <p className="text-sm text-[#FFA200] mb-1">{new Date(event.date).toLocaleDateString()}</p>
-                                            <p className="text-xs text-white/60 line-clamp-2">{event.description}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
-                                        <button 
-                                            onClick={() => handleEditEventClick(event)} 
-                                            className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
-                                        >
-                                            <FaEdit /> Edit
+                            {events.map((event, idx) => (
+                                <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
+                                    {events.length > 1 && (
+                                        <button type="button" onClick={() => removeRow(idx, events, setEvents)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <FaTrash />
                                         </button>
-                                        <button 
-                                            onClick={() => handleDeleteEvent(event.id)} 
-                                            className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
-                                        >
-                                            <FaTrash /> Delete
-                                        </button>
+                                    )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <input name="title" placeholder="Event Title" value={event.title} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input type="datetime-local" name="date" value={event.date} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="location" placeholder="Location" value={event.location} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                     </div>
+                                    <textarea name="description" placeholder="Description" value={event.description} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
+                                    <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                 </div>
                             ))}
-                            {existingEvents.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No events found.</p>}
+                            <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Events</button>
+                        </form>
+
+                        {/* Manage Existing Events */}
+                        <div className="border-t border-white/10 pt-8 mt-12">
+                            <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Events</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {existingEvents.map(event => (
+                                    <div key={event.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
+                                        <div className="flex items-start gap-4">
+                                            <img src={event.image || '/placeholder.jpg'} alt={event.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-white text-lg">{event.title}</h4>
+                                                <p className="text-sm text-[#FFA200] mb-1">{new Date(event.date).toLocaleDateString()}</p>
+                                                <p className="text-xs text-white/60 line-clamp-2">{event.description}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
+                                            <button
+                                                onClick={() => handleEditEventClick(event)}
+                                                className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
+                                            >
+                                                <FaEdit /> Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteEvent(event.id)}
+                                                className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
+                                            >
+                                                <FaTrash /> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {existingEvents.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No events found.</p>}
+                            </div>
                         </div>
-                    </div>
                     </>
                 )}
 
                 {/* --- Add Projects --- */}
                 {activeTab === 'projects' && (
                     <>
-                    <form onSubmit={(e) => handleBulkSubmit(e, 'projects')} className="space-y-6">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-bold">Add Projects</h2>
-                            <button type="button" onClick={() => addRow(projects, setProjects, { title: '', category: '', description: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
-                                <FaPlus /> Add Row
-                            </button>
-                        </div>
-
-                        {projects.map((project, idx) => (
-                            <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
-                                {projects.length > 1 && (
-                                    <button type="button" onClick={() => removeRow(idx, projects, setProjects)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <FaTrash />
-                                    </button>
-                                )}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <input name="title" placeholder="Project Title" value={project.title} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                    <input name="category" placeholder="Category" value={project.category} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                </div>
-                                <textarea name="description" placeholder="Description" value={project.description} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
-                                <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                        <form onSubmit={(e) => handleBulkSubmit(e, 'projects')} className="space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold">Add Projects</h2>
+                                <button type="button" onClick={() => addRow(projects, setProjects, { title: '', category: '', description: '', status: '', year: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
+                                    <FaPlus /> Add Row
+                                </button>
                             </div>
-                        ))}
-                        <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Projects</button>
-                    </form>
 
-                    {/* Manage Existing Projects */}
-                    <div className="border-t border-white/10 pt-8 mt-12">
-                        <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Projects</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {existingProjects.map(project => (
-                                <div key={project.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
-                                    <div className="flex items-start gap-4">
-                                        <img src={project.image || '/placeholder.jpg'} alt={project.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-white text-lg">{project.title}</h4>
-                                            <p className="text-sm text-[#FFA200] mb-1">{project.category}</p>
-                                            <p className="text-xs text-white/60 line-clamp-2">{project.description}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
-                                        <button 
-                                            onClick={() => handleEditProjectClick(project)} 
-                                            className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
-                                        >
-                                            <FaEdit /> Edit
+                            {projects.map((project, idx) => (
+                                <div key={idx} className="bg-black/30 p-6 rounded-xl border border-white/10 relative group">
+                                    {projects.length > 1 && (
+                                        <button type="button" onClick={() => removeRow(idx, projects, setProjects)} className="absolute top-4 right-4 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <FaTrash />
                                         </button>
-                                        <button 
-                                            onClick={() => handleDeleteProject(project.id)} 
-                                            className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
-                                        >
-                                            <FaTrash /> Delete
-                                        </button>
+                                    )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <input name="title" placeholder="Project Title" value={project.title} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="category" placeholder="Category" value={project.category} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="status" placeholder="Status" value={project.status} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="year" placeholder="Year" value={project.year} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                                     </div>
+                                    <textarea name="description" placeholder="Description" value={project.description} onChange={e => handleInputChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
+                                    <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, projects, setProjects)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                                 </div>
                             ))}
-                            {existingProjects.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No projects found.</p>}
+                            <button type="submit" className="w-full bg-[#FFA200] text-black font-bold py-3 rounded hover:bg-white transition-colors">Submit All Projects</button>
+                        </form>
+
+                        {/* Manage Existing Projects */}
+                        <div className="border-t border-white/10 pt-8 mt-12">
+                            <h3 className="text-2xl font-bold mb-6 text-white/90">Existing Projects</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {existingProjects.map(project => (
+                                    <div key={project.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-4">
+                                        <div className="flex items-start gap-4">
+                                            <img src={project.image || '/placeholder.jpg'} alt={project.title} className="w-20 h-20 rounded-lg object-cover border border-[#FFA200]/30" />
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-white text-lg">{project.title}</h4>
+                                                <p className="text-sm text-[#FFA200] mb-1">{project.category} | {project.status} | {project.year}</p>
+                                                <p className="text-xs text-white/60 line-clamp-2">{project.description}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2 mt-auto pt-2 border-t border-white/5">
+                                            <button
+                                                onClick={() => handleEditProjectClick(project)}
+                                                className="px-4 py-2 text-sm bg-white/10 hover:bg-[#FFA200] hover:text-black rounded transition-colors flex items-center gap-2"
+                                            >
+                                                <FaEdit /> Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteProject(project.id)}
+                                                className="px-4 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors flex items-center gap-2"
+                                            >
+                                                <FaTrash /> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {existingProjects.length === 0 && <p className="text-white/40 col-span-2 text-center py-4">No projects found.</p>}
+                            </div>
                         </div>
-                    </div>
                     </>
                 )}
 
@@ -722,8 +726,8 @@ const Admin = () => {
                         <div className="grid grid-cols-1 gap-4">
                             {submittedIdeas.map(idea => (
                                 <div key={idea.id} className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col gap-2 relative group">
-                                    <button 
-                                        onClick={() => handleDeleteIdea(idea.id)} 
+                                    <button
+                                        onClick={() => handleDeleteIdea(idea.id)}
                                         className="absolute top-4 right-4 text-red-500 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Delete Idea"
                                     >
@@ -796,6 +800,16 @@ const Admin = () => {
                                 <label className="block text-sm text-white/60 mb-1">Category</label>
                                 <input value={editingProject.category || ''} onChange={e => setEditingProject({ ...editingProject, category: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Status</label>
+                                    <input value={editingProject.status || ''} onChange={e => setEditingProject({ ...editingProject, status: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Year</label>
+                                    <input value={editingProject.year || ''} onChange={e => setEditingProject({ ...editingProject, year: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                                </div>
+                            </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Description</label>
                                 <textarea value={editingProject.description || ''} onChange={e => setEditingProject({ ...editingProject, description: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white h-32 focus:border-[#FFA200] outline-none" required />
@@ -833,7 +847,7 @@ const Admin = () => {
                                     <input value={editingEvent.location || ''} onChange={e => setEditingEvent({ ...editingEvent, location: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                                 </div>
                             </div>
-                             <div>
+                            <div>
                                 <label className="block text-sm text-white/60 mb-1">Register Link</label>
                                 <input value={editingEvent.registerLink || ''} onChange={e => setEditingEvent({ ...editingEvent, registerLink: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
                             </div>
