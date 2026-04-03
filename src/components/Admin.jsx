@@ -1,13 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc, writeBatch, orderBy, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import uploadImage from '../utils/uploadImage';
-import { FaPlus, FaTrash, FaCheck, FaUsers, FaCalendarAlt, FaProjectDiagram, FaEdit, FaTimes, FaLightbulb } from 'react-icons/fa';
+import useMembershipRegistrations from '../hooks/useMembershipRegistrations';
+import emailjs from '@emailjs/browser';
+import { FaPlus, FaTrash, FaCheck, FaUsers, FaCalendarAlt, FaProjectDiagram, FaEdit, FaTimes, FaLightbulb, FaAddressCard, FaQrcode } from 'react-icons/fa';
 
 const Admin = () => {
     const [activeTab, setActiveTab] = useState('events');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
+
+    // --- Membership Hook ---
+    const { registrations, updateStatus, deleteRegistration, loading: membershipLoading } = useMembershipRegistrations();
+
+    // --- State for QR Management ---
+    const [paymentSettings, setPaymentSettings] = useState({});
+    const [qrFiles, setQrFiles] = useState({});
+
+    const fetchPaymentSettings = async () => {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'payment_settings'));
+            const settings = {};
+            querySnapshot.forEach((doc) => {
+                settings[doc.id] = doc.data();
+            });
+            setPaymentSettings(settings);
+        } catch (error) {
+            console.error("Error fetching payment settings:", error);
+        }
+    };
+
+    const handleQrUpload = async (planName) => {
+        if (!qrFiles[planName]) return;
+        setLoading(true);
+        try {
+            const imageUrl = await uploadImage(qrFiles[planName]);
+            await setDoc(doc(db, 'payment_settings', planName), {
+                qrUrl: imageUrl,
+                updatedAt: new Date().toISOString()
+            });
+            setMessage(`QR Code for ${planName} updated successfully!`);
+            fetchPaymentSettings();
+        } catch (error) {
+            setMessage(`Error updating QR: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRemoveQr = async (planName) => {
+        if (!window.confirm(`Are you sure you want to remove the QR code for ${planName}?`)) return;
+        setLoading(true);
+        try {
+            await setDoc(doc(db, 'payment_settings', planName), {
+                qrUrl: null,
+                updatedAt: new Date().toISOString()
+            });
+            setMessage(`QR Code for ${planName} removed successfully!`);
+            fetchPaymentSettings();
+        } catch (error) {
+            setMessage(`Error removing QR: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleApproveMembership = async (reg) => {
+        setLoading(true);
+        try {
+            // 1. Send Update Command to Google Sheets (To mark as Verified)
+            const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
+            if (webhookUrl) {
+                // Formatting data to match EXACT headers in your sheet for the script to find
+                const updateData = {
+                    name: reg.name,
+                    email: reg.email,
+                    phone: reg.phone,
+                    year: reg.year,
+                    section: reg.section,
+                    membershipTier: reg.membershipTier,
+                    price: reg.price,
+                    proofUrl: reg.proofUrl,
+                    submittedAt: reg.createdAt?.toDate ? reg.createdAt.toDate().toLocaleString() : reg.createdAt ? new Date(reg.createdAt).toLocaleString() : new Date().toLocaleString(),
+                    status: 'Verified',
+                    verifiedAt: new Date().toLocaleString()
+                };
+
+                // Use URLSearchParams for a more reliable POST to Google Apps Script
+                const formData = new URLSearchParams();
+                Object.keys(updateData).forEach(key => formData.append(key, updateData[key]));
+
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: formData,
+                });
+            }
+
+            // 2. Send confirmation email
+            const templateParams = {
+                name: reg.name,
+                email: reg.email,
+                membership_tier: reg.membershipTier,
+                price: reg.price,
+                status: 'Verified',
+                reply_to: 'proddec@ceconline.edu',
+            };
+
+            await emailjs.send(
+                import.meta.env.VITE_EMAILJS_SERVICE_ID,
+                import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+                templateParams,
+                import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+            );
+
+            // 3. Delete from Firestore (Process Complete)
+            await deleteRegistration(reg.id);
+
+            setMessage(`Membership for ${reg.name} verified and sheet updated!`);
+        } catch (error) {
+            console.error("Verification error:", error);
+            setMessage(`Error during verification: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // --- State for Submitted Ideas ---
     const [submittedIdeas, setSubmittedIdeas] = useState([]);
@@ -56,6 +174,8 @@ const Admin = () => {
             fetchProjects();
         } else if (activeTab === 'ideas') {
             fetchIdeas();
+        } else if (activeTab === 'qr') {
+            fetchPaymentSettings();
         }
     }, [activeTab]);
 
@@ -441,7 +561,9 @@ const Admin = () => {
                     { id: 'events', label: 'Add Events', icon: <FaCalendarAlt /> },
                     { id: 'projects', label: 'Add Projects', icon: <FaProjectDiagram /> },
                     { id: 'execom', label: 'Manage Members', icon: <FaUsers /> },
-                    { id: 'ideas', label: 'View Ideas', icon: <FaLightbulb /> }
+                    { id: 'ideas', label: 'View Ideas', icon: <FaLightbulb /> },
+                    { id: 'registrations', label: 'Memberships', icon: <FaAddressCard /> },
+                    { id: 'qr', label: 'Payment QR', icon: <FaQrcode /> }
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -748,6 +870,129 @@ const Admin = () => {
                                 </div>
                             ))}
                             {submittedIdeas.length === 0 && <p className="text-white/40 text-center py-8">No ideas submitted yet.</p>}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- Payment QR Management --- */}
+                {activeTab === 'qr' && (
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white/90">Update Payment QR Codes</h2>
+                            <button onClick={fetchPaymentSettings} className="text-sm text-[#FFA200] hover:underline">Refresh</button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {['First Year', 'Second Year', 'Third Year', 'Fourth Year'].map(plan => (
+                                <div key={plan} className="bg-black/30 p-6 rounded-2xl border border-white/10 flex flex-col gap-4">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-xl font-bold text-[#FFA200]">{plan}</h3>
+                                        <div className="flex gap-2">
+                                            <span className="text-xs text-white/40 italic">Current QR</span>
+                                            {paymentSettings[plan]?.qrUrl && (
+                                                <button 
+                                                    onClick={() => handleRemoveQr(plan)}
+                                                    className="text-[10px] text-red-500 hover:text-red-400 font-bold"
+                                                >
+                                                    REMOVE
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="aspect-square bg-white rounded-xl overflow-hidden flex items-center justify-center p-2 border border-[#FFA200]/20">
+                                        {paymentSettings[plan]?.qrUrl ? (
+                                            <img src={paymentSettings[plan].qrUrl} alt={plan} className="w-full h-full object-contain" />
+                                        ) : (
+                                            <div className="text-black/20 font-bold uppercase tracking-tighter text-center">No Online QR<br/><span className="text-[10px]">Using Local Default</span></div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-white/50 block">Upload New QR Image</label>
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            onChange={(e) => setQrFiles(prev => ({ ...prev, [plan]: e.target.files[0] }))}
+                                            className="w-full bg-black/50 border border-white/10 p-2 rounded text-xs" 
+                                        />
+                                        <button 
+                                            onClick={() => handleQrUpload(plan)}
+                                            disabled={!qrFiles[plan] || loading}
+                                            className="w-full py-2 bg-[#FFA200] text-black font-bold rounded-lg hover:bg-white transition-colors disabled:opacity-50"
+                                        >
+                                            {loading ? 'Uploading...' : 'Update QR Code'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-white/40 text-xs text-center">Note: Updating here will instantly update the registration page for all users.</p>
+                    </div>
+                )}
+
+                {/* --- Membership Registrations --- */}
+                {activeTab === 'registrations' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold mb-6 text-white/90">Membership Applications</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {registrations.map(reg => (
+                                <div key={reg.id} className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col gap-2 relative group">
+                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleApproveMembership(reg)}
+                                            className="text-green-500 hover:text-green-400 p-2"
+                                            title="Approve & Send Mail"
+                                            disabled={loading}
+                                        >
+                                            <FaCheck />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteRegistration(reg.id)}
+                                            className="text-red-500 hover:text-red-400 p-2"
+                                            title="Delete"
+                                            disabled={loading}
+                                        >
+                                            <FaTrash />
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                                        <h3 className="text-xl font-bold text-[#FFA200] md:col-span-2">{reg.name}</h3>
+                                        <p><span className="text-gray-500">Email:</span> {reg.email}</p>
+                                        <p><span className="text-gray-500">Phone:</span> {reg.phone}</p>
+                                        <p><span className="text-gray-500">Year:</span> {reg.year}</p>
+                                        <p><span className="text-gray-500">Section:</span> {reg.section}</p>
+                                        <p><span className="text-gray-500">Tier:</span> {reg.membershipTier}</p>
+                                        <p><span className="text-gray-500">Price:</span> ₹{reg.price}</p>
+                                        
+                                        {reg.proofUrl && (
+                                            <p className="md:col-span-2 mt-4">
+                                                <span className="text-gray-500 block mb-2">Payment Proof:</span>
+                                                <a 
+                                                    href={reg.proofUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-block group/img"
+                                                >
+                                                    <img 
+                                                        src={reg.proofUrl} 
+                                                        alt="Payment Proof" 
+                                                        className="h-48 rounded-lg border border-white/10 group-hover/img:border-[#FFA200] transition-all cursor-zoom-in"
+                                                        onError={(e) => {
+                                                            e.target.parentElement.innerHTML = '<span class="text-red-400 text-xs italic">Image failed to load (check Firebase Storage rules)</span>';
+                                                        }}
+                                                    />
+                                                </a>
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="mt-2 text-xs text-gray-600 text-right">
+                                        Applied on: {reg.createdAt?.toDate ? reg.createdAt.toDate().toLocaleString() : reg.createdAt ? new Date(reg.createdAt).toLocaleString() : 'N/A'}
+                                    </div>
+                                </div>
+                            ))}
+                            {registrations.length === 0 && !membershipLoading && <p className="text-white/40 text-center py-8">No registration requests found.</p>}
+                            {membershipLoading && <p className="text-[#FFA200] text-center py-8">Loading registrations...</p>}
                         </div>
                     </div>
                 )}
