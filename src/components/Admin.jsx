@@ -963,7 +963,7 @@ const Admin = () => {
                                         <p><span className="text-gray-500">Year:</span> {reg.year}</p>
                                         <p><span className="text-gray-500">Section:</span> {reg.section}</p>
                                         <p><span className="text-gray-500">Tier:</span> {reg.membershipTier}</p>
-                                        <p><span className="text-gray-500">Price:</span> ₹{reg.price}</p>
+                                        <p><span className="text-gray-500">Price:</span> {reg.price}</p>
                                         
                                         {reg.proofUrl && (
                                             <p className="md:col-span-2 mt-4">
