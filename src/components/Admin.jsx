@@ -938,7 +938,7 @@ const Admin = () => {
                         <div className="grid grid-cols-1 gap-4">
                             {registrations.map(reg => (
                                 <div key={reg.id} className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col gap-2 relative group">
-                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="absolute top-4 right-4 flex gap-2 transition-opacity">
                                         <button
                                             onClick={() => handleApproveMembership(reg)}
                                             className="text-green-500 hover:text-green-400 p-2"
@@ -963,7 +963,7 @@ const Admin = () => {
                                         <p><span className="text-gray-500">Year:</span> {reg.year}</p>
                                         <p><span className="text-gray-500">Section:</span> {reg.section}</p>
                                         <p><span className="text-gray-500">Tier:</span> {reg.membershipTier}</p>
-                                        <p><span className="text-gray-500">Price:</span> ₹{reg.price}</p>
+                                        <p><span className="text-gray-500">Price:</span> {reg.price}</p>
                                         
                                         {reg.proofUrl && (
                                             <p className="md:col-span-2 mt-4">
