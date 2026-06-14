@@ -148,7 +148,7 @@ const Admin = () => {
     const [editingProject, setEditingProject] = useState(null);
 
     // --- Bulk Forms State ---
-    const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
+    const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', slug: '', registerLink: '', image: null }]);
     const [projects, setProjects] = useState([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
     const [members, setMembers] = useState([{ name: '', title: '', handle: '', avatarUrl: null }]);
 
@@ -392,7 +392,8 @@ const Admin = () => {
                 date: editingEvent.date,
                 description: editingEvent.description,
                 location: editingEvent.location,
-                registerLink: editingEvent.registerLink,
+                slug: editingEvent.slug || '',
+                registerLink: editingEvent.registerLink || '',
                 image: imageUrl
             });
 
@@ -535,7 +536,7 @@ const Admin = () => {
             setMessage(`${type} added successfully!`);
 
             // Reset Forms
-            if (type === 'events') setEvents([{ title: '', date: '', description: '', location: '', registerLink: '', image: null }]);
+            if (type === 'events') setEvents([{ title: '', date: '', description: '', location: '', slug: '', registerLink: '', image: null }]);
             if (type === 'projects') setProjects([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
             if (type === 'execom') {
                 setMembers([{ name: '', title: '', handle: '', avatarUrl: null }]);
@@ -642,7 +643,7 @@ const Admin = () => {
                         <form onSubmit={(e) => handleBulkSubmit(e, 'events')} className="space-y-6">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-2xl font-bold">Add Events</h2>
-                                <button type="button" onClick={() => addRow(events, setEvents, { title: '', date: '', description: '', location: '', registerLink: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
+                                <button type="button" onClick={() => addRow(events, setEvents, { title: '', date: '', description: '', location: '', slug: '', registerLink: '', image: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
                                     <FaPlus /> Add Row
                                 </button>
                             </div>
@@ -658,7 +659,8 @@ const Admin = () => {
                                         <input name="title" placeholder="Event Title" value={event.title} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                                         <input type="datetime-local" name="date" value={event.date} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
                                         <input name="location" placeholder="Location" value={event.location} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                        <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
+                                        <input name="slug" placeholder="Custom URL Slug (e.g. eventname)" value={event.slug} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
+                                        <input name="registerLink" placeholder="Registration Link" value={event.registerLink} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded md:col-span-2" />
                                     </div>
                                     <textarea name="description" placeholder="Description" value={event.description} onChange={e => handleInputChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded h-24 mb-4" required />
                                     <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, events, setEvents)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
@@ -1092,9 +1094,15 @@ const Admin = () => {
                                     <input value={editingEvent.location || ''} onChange={e => setEditingEvent({ ...editingEvent, location: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-sm text-white/60 mb-1">Register Link</label>
-                                <input value={editingEvent.registerLink || ''} onChange={e => setEditingEvent({ ...editingEvent, registerLink: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Custom URL Slug</label>
+                                    <input value={editingEvent.slug || ''} onChange={e => setEditingEvent({ ...editingEvent, slug: e.target.value })} placeholder="e.g. eventname" className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-white/60 mb-1">Register Link</label>
+                                    <input value={editingEvent.registerLink || ''} onChange={e => setEditingEvent({ ...editingEvent, registerLink: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Description</label>
