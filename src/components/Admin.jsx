@@ -150,7 +150,7 @@ const Admin = () => {
     // --- Bulk Forms State ---
     const [events, setEvents] = useState([{ title: '', date: '', description: '', location: '', slug: '', registerLink: '', image: null }]);
     const [projects, setProjects] = useState([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
-    const [members, setMembers] = useState([{ name: '', title: '', handle: '', avatarUrl: null }]);
+    const [members, setMembers] = useState([{ name: '', title: '', order: 1, handle: '', avatarUrl: null }]);
 
     // Fetch Teams on Load
     useEffect(() => {
@@ -206,6 +206,13 @@ const Admin = () => {
             const q = query(collection(db, 'execom'), where('year', '==', team.year));
             const snapshot = await getDocs(q);
             const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            membersData.sort((a, b) => {
+                const valA = parseInt(a.order);
+                const valB = parseInt(b.order);
+                const orderA = isNaN(valA) ? 9999 : valA;
+                const orderB = isNaN(valB) ? 9999 : valB;
+                return orderA - orderB;
+            });
             setTeamMembers(membersData);
         } catch (error) {
             console.error("Error fetching members:", error);
@@ -341,9 +348,11 @@ const Admin = () => {
             }
 
             const memberRef = doc(db, 'execom', editingMember.id);
+            const orderNum = parseInt(editingMember.order);
             await updateDoc(memberRef, {
                 name: editingMember.name,
                 title: editingMember.title,
+                order: isNaN(orderNum) ? 9999 : orderNum,
                 handle: editingMember.handle,
                 avatarUrl: imageUrl
             });
@@ -526,6 +535,8 @@ const Admin = () => {
                 if (type === 'execom') {
                     delete docData.image;
                     docData.avatarUrl = imageUrl;
+                    const parsedOrder = parseInt(item.order);
+                    docData.order = isNaN(parsedOrder) ? 9999 : parsedOrder;
                 } else {
                     docData.image = imageUrl;
                 }
@@ -539,7 +550,7 @@ const Admin = () => {
             if (type === 'events') setEvents([{ title: '', date: '', description: '', location: '', slug: '', registerLink: '', image: null }]);
             if (type === 'projects') setProjects([{ title: '', category: '', description: '', status: '', year: '', image: null }]);
             if (type === 'execom') {
-                setMembers([{ name: '', title: '', handle: '', avatarUrl: null }]);
+                setMembers([{ name: '', title: '', order: 1, handle: '', avatarUrl: null }]);
                 fetchTeamMembers(selectedTeam); // Refresh list
             }
 
@@ -793,7 +804,7 @@ const Admin = () => {
 
                             <div className="flex justify-between items-center">
                                 <h2 className="text-2xl font-bold">Add New Members</h2>
-                                <button type="button" onClick={() => addRow(members, setMembers, { name: '', title: '', handle: '', avatarUrl: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
+                                <button type="button" onClick={() => addRow(members, setMembers, { name: '', title: '', order: members.length + 1, handle: '', avatarUrl: null })} className="flex items-center gap-2 text-[#FFA200] hover:text-white">
                                     <FaPlus /> Add Row
                                 </button>
                             </div>
@@ -805,9 +816,12 @@ const Admin = () => {
                                             <FaTrash />
                                         </button>
                                     )}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         <input name="name" placeholder="Full Name" value={member.name} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
-                                        <input name="title" placeholder="Role/Title" value={member.title} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input name="title" placeholder="Role/Title (e.g. Chair)" value={member.title} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                        <input type="number" name="order" placeholder="Display Order (e.g. 1)" value={member.order ?? ''} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" required />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <input name="handle" placeholder="Social Handle" value={member.handle} onChange={e => handleInputChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                         <input type="file" accept="image/*" onChange={(e) => handleImageChange(idx, e, members, setMembers)} className="w-full bg-black/50 border border-white/10 p-3 rounded" />
                                     </div>
@@ -826,7 +840,12 @@ const Admin = () => {
                                             <div className="flex items-center gap-4">
                                                 <img src={member.avatarUrl} alt={member.name} className="w-12 h-12 rounded-full object-cover border border-[#FFA200]/30" />
                                                 <div>
-                                                    <h4 className="font-bold text-white">{member.name}</h4>
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-white">{member.name}</h4>
+                                                        <span className="text-xs bg-[#FFA200]/20 text-[#FFA200] border border-[#FFA200]/40 px-2 py-0.5 rounded font-mono">
+                                                            Order: {member.order ?? '-'}
+                                                        </span>
+                                                    </div>
                                                     <p className="text-sm text-white/60">{member.title}</p>
                                                 </div>
                                             </div>
@@ -1015,6 +1034,10 @@ const Admin = () => {
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Title</label>
                                 <input value={editingMember.title || ''} onChange={e => setEditingMember({ ...editingMember, title: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-white/60 mb-1">Display Order (e.g. 1 for Chair, 2 for Vice Chair)</label>
+                                <input type="number" value={editingMember.order ?? ''} onChange={e => setEditingMember({ ...editingMember, order: e.target.value })} className="w-full bg-black border border-white/10 p-3 rounded text-white focus:border-[#FFA200] outline-none" required />
                             </div>
                             <div>
                                 <label className="block text-sm text-white/60 mb-1">Handle</label>
